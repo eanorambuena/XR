@@ -58,23 +58,23 @@ jobs:
           echo "=== Test Summary ==="
           total=0
 
-          for file in Assets/Tests/*/*.cs; do
-            if [ -f "$file" ]; then
-              count=$(grep -c "^\s*\[Test\]" "$file" || echo 0)
+          for file in $(find Assets/Tests -name "*Tests.cs" -type f); do
+            count=$(grep -c "^\s*\[Test\]" "$file" 2>/dev/null || echo 0)
+            if [ "$count" != "0" ]; then
               echo "$count tests in $(basename $file)"
-              total=$((total + count))
             fi
+            total=$((total + count))
           done
 
           echo ""
           echo "Total: $total tests"
 
-          if [ $total -lt 40 ]; then
-            echo "⚠️  Warning: Expected at least 40 tests"
+          if [ "$total" -lt 50 ]; then
+            echo "⚠️  Warning: Expected at least 50 tests, found $total"
             exit 1
           fi
 
-          echo "✅ Test count acceptable"
+          echo "✅ Test count acceptable ($total tests)"
 
   build-report:
     name: Generate Build Report
@@ -105,17 +105,17 @@ jobs:
 
           # Check for common C# issues
           echo "Checking for TODO/FIXME comments..."
-          grep -r "TODO\|FIXME" Assets/Scripts/*.cs || echo "✓ No TODO/FIXME found"
+          grep -r "TODO\|FIXME" Assets/Scripts/ --include="*.cs" || echo "✓ No TODO/FIXME found"
 
           # Check file organization
           echo ""
           echo "✓ Checking namespaces..."
-          grep -r "^namespace VRCar" Assets/Scripts/*.cs | wc -l | xargs echo "  Namespaced files:"
+          grep -r "^namespace VRCar" Assets/Scripts/ --include="*.cs" | wc -l | xargs echo "  Namespaced files:"
 
           # Check test naming
           echo ""
           echo "✓ Checking test naming conventions..."
-          find Assets/Tests -name "*Tests.cs" | wc -l | xargs echo "  Test files:"
+          find Assets/Tests -name "*Tests.cs" -type f | wc -l | xargs echo "  Test files:"
 
   lint:
     name: Lint Check
@@ -132,14 +132,16 @@ jobs:
 
           # Check GameObject instantiation (should use Instantiate)
           echo "Checking GameObject instantiation patterns..."
-          if grep -r "new GameObject" Assets/Scripts/ | grep -v "Tests" | grep -v "//" ; then
+          if grep -r "new GameObject" Assets/Scripts/ --include="*.cs" | grep -v "Tests" | grep -v "//" ; then
             echo "⚠️  Found GameObject instantiation in production code"
+          else
+            echo "✓ No problematic GameObject instantiation"
           fi
 
           # Check for missing null checks
           echo ""
           echo "✓ Checking component references..."
-          grep -r "GetComponent" Assets/Scripts/ | wc -l | xargs echo "  GetComponent calls:"
+          grep -r "GetComponent" Assets/Scripts/ --include="*.cs" | wc -l | xargs echo "  GetComponent calls:"
 
           echo ""
           echo "✓ Linting complete"
@@ -156,7 +158,7 @@ jobs:
 
           # Check for hardcoded credentials
           echo "Checking for hardcoded secrets..."
-          if grep -r "password\|secret\|token\|api_key" Assets/Scripts/*.cs ; then
+          if grep -r "password\|secret\|token\|api_key" Assets/Scripts/ --include="*.cs" 2>/dev/null ; then
             echo "⚠️  Potential hardcoded secrets found"
             exit 1
           else
@@ -166,7 +168,7 @@ jobs:
           # Check for unsafe operations
           echo ""
           echo "✓ Checking for unsafe operations..."
-          grep -r "unsafe\|Marshal\|DllImport" Assets/Scripts/*.cs || echo "✓ No unsafe code"
+          grep -r "unsafe\|Marshal\|DllImport" Assets/Scripts/ --include="*.cs" 2>/dev/null || echo "✓ No unsafe code"
 
           echo ""
           echo "✅ Security scan passed"
@@ -183,23 +185,23 @@ jobs:
           echo ""
 
           echo "Production Code:"
-          find Assets/Scripts -name "*.cs" -exec wc -l {} + | tail -1
+          find Assets/Scripts -name "*.cs" -type f -exec wc -l {} + | tail -1
 
           echo ""
           echo "Test Code:"
-          find Assets/Tests -name "*.cs" -exec wc -l {} + | tail -1
+          find Assets/Tests -name "*.cs" -type f -exec wc -l {} + | tail -1
 
           echo ""
           echo "Components:"
-          ls -1 Assets/Scripts/*/*.cs 2>/dev/null | wc -l | xargs echo "  Total:"
+          find Assets/Scripts -name "*.cs" -type f | wc -l | xargs echo "  Total:"
 
           echo ""
           echo "Documentation Files:"
-          ls -1 *.md 2>/dev/null | wc -l | xargs echo "  Total:"
+          find . -maxdepth 1 -name "*.md" -type f | wc -l | xargs echo "  Total:"
 
           echo ""
-          echo "Git Commits (last 10):"
-          git log --oneline -10 | wc -l | xargs echo "  From:"
+          echo "Git Commits:"
+          git rev-list --count HEAD | xargs echo "  Total:"
 
       - name: Upload stats
         uses: actions/upload-artifact@v3
